@@ -99,45 +99,66 @@ if st.button('📊 Predict and Calculate'):
     gold_model = load_gold_model()
 
     start, end = '2012-01-01', date.today()
-    
+
     stock_data = fetch_stock_data(stock_symbol, start, end)
     gold_data = fetch_stock_data(gold_symbol, start, end)
-    
+
+    if stock_data.empty:
+        st.error(f"❌ No stock data found for symbol: {stock_symbol}")
+        st.stop()
+    if gold_data.empty:
+        st.error(f"❌ No gold data found for symbol: {gold_symbol}")
+        st.stop()
+
     stock_data = preprocess_data(stock_data)
     gold_data = preprocess_data(gold_data)
-    
+
     stock_train_size = max(int(len(stock_data) * 0.80), len(stock_data) - 365)
     gold_train_size = max(int(len(gold_data) * 0.80), len(gold_data) - 365)
-    
+
     stock_test = prepare_test_data(stock_data, stock_train_size)
     gold_test = prepare_test_data(gold_data, gold_train_size)
-    
+
+    if stock_test.empty or len(stock_test) < 101:
+        st.error("❌ Not enough stock data to generate predictions (need at least 101 rows).")
+        st.stop()
+
+    if gold_test.empty or len(gold_test) < 101:
+        st.error("❌ Not enough gold data to generate predictions (need at least 101 rows).")
+        st.stop()
+
     stock_scaler, stock_test_scaled = scale_data(stock_test)
     gold_scaler, gold_test_scaled = scale_data(gold_test)
-    
+
     future_days = 30
     stock_future_df = predict_stock_prices(stock_model, stock_test_scaled, stock_scaler, future_days)
     gold_predictions = predict_gold_prices(gold_model, gold_test_scaled, gold_scaler, future_days)
     gold_predictions = adjust_gold_fluctuation(gold_predictions)
-    
+
     stock_units = stock_investment / stock_future_df.iloc[0]['Close']
     stock_final_value = stock_units * stock_future_df.iloc[-1]['Close']
-    
+
     gold_units = gold_investment / gold_predictions[0][0]
     gold_final_value = gold_units * gold_predictions[-1][0]
-    
+
     bond_final_value = calculate_bond_return(bond_principal, bond_rate, bond_months, compounding == 'Yes')
-    
+
     total_initial = stock_investment + gold_investment + bond_principal
     total_final = stock_final_value + gold_final_value + bond_final_value
     total_return = ((total_final - total_initial) / total_initial) * 100
-    
+
     st.subheader('📊 Investment Summary')
     st.write(f'*Stock Final Value:* ${stock_final_value:,.2f}')
     st.write(f'*Gold Final Value:* ${gold_final_value:,.2f}')
     st.write(f'*Bond Final Value:* ${bond_final_value:,.2f}')
     st.write(f'*Total Final Value:* ${total_final:,.2f}')
     st.write(f'*Total Portfolio Return:* {total_return:.2f}%')
+
+    if total_return > 0:
+        st.success("📈 Positive Growth Expected!")
+    else:
+        st.warning("⚠ Possible Loss Expected!")
+
     
     if total_return > 0:
         st.success("📈 Positive Growth Expected!")
